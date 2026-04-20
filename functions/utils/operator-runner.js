@@ -106,7 +106,7 @@ function opRename(nodes, params) {
         }
     }
 
-    if (template?.enabled && template.text) {
+    if (template?.enabled && template.template) {
         const counters = new Map();
         const scope = template.indexScope || template.scope || 'region'; // 默认按地区分组计数，符合用户直觉
 
@@ -130,10 +130,10 @@ function opRename(nodes, params) {
                 emoji: enriched.emoji,
                 server: r.server,
                 port: r.port,
-                index: groupIndex + (template.offset || 1) - 1,
-                globalIndex: index + (template.offset || 1)
+                index: groupIndex + (Number(template.offset || template.indexStart) || 1) - 1,
+                globalIndex: index + (Number(template.offset || template.indexStart) || 1)
             };
-            const newName = NodeUtils.renderTemplate(template.text, vars, r);
+            const newName = NodeUtils.renderTemplate(template.template, vars, r);
             
             if (newName !== r.name) {
                 return {
@@ -194,23 +194,16 @@ async function opScript(nodes, params, context) {
         };
 
         const wrapper = `
-            return (async () => {
-                const $proxies = Array.from(arguments[0]);
-                const $context = arguments[1];
-                const { $utils } = arguments[2];
-                
-                ${scriptCode}
+            const $proxies = arguments[0];
+            const $context = arguments[1];
+            const $utils = arguments[2].$utils;
+            
+            ${scriptCode}
 
-                if (typeof operator === 'function') {
-                    const res = await operator($proxies, $context);
-                    // 兼容返回 { proxies: [] } 或 { nodes: [] } 的脚本
-                    if (res && !Array.isArray(res)) {
-                        return res.proxies || res.nodes || $proxies;
-                    }
-                    return res;
-                }
-                return $proxies;
-            })();
+            if (typeof operator === 'function') {
+                return await operator($proxies, $context);
+            }
+            return $proxies;
         `;
 
         const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
